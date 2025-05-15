@@ -5,7 +5,7 @@ import json
 import time
 import datetime
 import traceback
-from keep_alive import keep_alive  # اضافه شد
+from keep_alive import keep_alive
 
 TELEGRAM_BOT_TOKEN = "8041985955:AAGNPL_dWWWI5AWlYFue5NxkNOXsYqBOmiw"
 TELEGRAM_CHANNEL_ID = "@PumpGuardians"
@@ -24,7 +24,7 @@ def send_telegram_message(text):
         print(f"[Telegram] Status: {response.status_code}")
         if response.status_code != 200:
             print(f"[Telegram Error] {response.text}")
-    except Exception:
+    except Exception as e:
         print("[Telegram Exception]")
         traceback.print_exc()
 
@@ -37,14 +37,14 @@ def format_token_message(info):
 
         name = info.get("name", "?")
         symbol = info.get("symbol", "?")
-        price_usd = float(info.get("usdMarketPrice", 0))
-        price_sol = float(info.get("solMarketPrice", 0))
-        volume = float(info.get("totalVolume", 0))
-        market_cap = float(info.get("marketCapUsd", 0))
+        price_usd = float(info.get("usdMarketPrice") or 0)
+        price_sol = float(info.get("solMarketPrice") or 0)
+        volume = float(info.get("totalVolume") or 0)
+        market_cap = float(info.get("marketCapUsd") or 0)
         holders = info.get("holders", "?")
-        twitter = info.get("twitter", "Not available")
-        website = info.get("website", "Not available")
-        created_at = int(info.get("created_at", 0))
+        twitter = info.get("twitter") or "Not available"
+        website = info.get("website") or "Not available"
+        created_at = int(info.get("created_at") or 0)
 
         score = int(info.get("score") or 3)
         green_circles = "🟢" * score
@@ -80,7 +80,7 @@ def fetch_token_info(address):
         url = f"https://pumpportal.fun/api/mint/{address}"
         res = requests.get(url)
         if res.status_code != 200:
-            print(f"[ERROR] Failed to get token info: {res.text}")
+            print(f"[ERROR] Failed to get token info for {address}: {res.text}")
             return None
         return res.json()
     except Exception:
@@ -105,7 +105,6 @@ def on_message(ws, message):
             send_telegram_message(msg)
         else:
             print("[SKIP] Invalid message format.")
-
     except Exception:
         print("[EXCEPTION] While handling WebSocket message:")
         traceback.print_exc()
@@ -135,5 +134,5 @@ def start_websocket():
 if __name__ == "__main__":
     print("[STARTING] PumpGuardians WebSocket bot running...")
     send_telegram_message("✅ PumpGuardians WebSocket bot started.")
-    keep_alive()  # فعال کردن پورت فیک برای Render
+    keep_alive()
     start_websocket()
