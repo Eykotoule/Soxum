@@ -5,6 +5,7 @@ import json
 import time
 import datetime
 import traceback
+from keep_alive import keep_alive  # برای زنده نگه داشتن بات در هاست‌هایی مثل Replit
 
 TELEGRAM_BOT_TOKEN = "8041985955:AAGNPL_dWWWI5AWlYFue5NxkNOXsYqBOmiw"
 TELEGRAM_CHANNEL_ID = "@PumpGuardians"
@@ -132,6 +133,7 @@ def start_websocket():
     ws.run_forever()
 
 if __name__ == "__main__":
+    keep_alive()  # راه‌اندازی سرور برای زنده نگه داشتن بات
     print("[STARTING] PumpGuardians WebSocket bot running...")
     send_telegram_message("✅ PumpGuardians WebSocket bot started.")
     start_websocket()
