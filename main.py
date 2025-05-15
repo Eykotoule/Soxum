@@ -5,7 +5,6 @@ import json
 import time
 import datetime
 import traceback
-from keep_alive import keep_alive  # برای زنده نگه داشتن بات در هاست‌هایی مثل Replit
 
 TELEGRAM_BOT_TOKEN = "8041985955:AAGNPL_dWWWI5AWlYFue5NxkNOXsYqBOmiw"
 TELEGRAM_CHANNEL_ID = "@PumpGuardians"
@@ -30,24 +29,29 @@ def send_telegram_message(text):
 
 def format_token_message(info):
     try:
-        address = info.get("address", "")
+        address = info.get("address", "?")
         if not address or address in SEEN_MINTS:
             return None
         SEEN_MINTS.add(address)
 
-        name = info.get("name", "?")
-        symbol = info.get("symbol", "?")
-        price_usd = float(info.get("usdMarketPrice", 0))
-        price_sol = float(info.get("solMarketPrice", 0))
-        volume = float(info.get("totalVolume", 0))
-        market_cap = float(info.get("marketCapUsd", 0))
-        holders = info.get("holders", "?")
-        twitter = info.get("twitter", "Not available")
-        website = info.get("website", "Not available")
-        created_at = int(info.get("created_at", 0))
+        name = info.get("name", "").strip()
+        symbol = info.get("symbol", "").strip()
+        price_usd = float(info.get("usdMarketPrice", 0) or 0)
+        price_sol = float(info.get("solMarketPrice", 0) or 0)
+        market_cap = float(info.get("marketCapUsd", 0) or 0)
 
-        score = int(info.get("score") or 3)
-        green_circles = "🟢" * score
+        # اطلاعات پایه برای ارسال باید وجود داشته باشه
+        if not name or not symbol or (price_usd <= 0 and price_sol <= 0) or market_cap <= 0:
+            print(f"[SKIPPED] Token with incomplete info: {name}/{symbol} | Price: {price_usd} | MC: {market_cap}")
+            return None
+
+        volume = float(info.get("totalVolume", 0) or 0)
+        holders = info.get("holders", "?")
+        twitter = info.get("twitter") or "N/A"
+        website = info.get("website") or "N/A"
+        created_at = int(info.get("created_at", 0) or 0)
+        score = int(info.get("score", 0) or 0)
+        green_circles = "🟢" * score if score > 0 else "⚪️"
 
         age_str = "Unknown"
         if created_at:
@@ -94,7 +98,7 @@ def on_message(ws, message):
         mint = data.get("mint")
         if not mint or mint in SEEN_MINTS:
             return
-        print(f"[INFO] New token: {mint}")
+        print(f"[INFO] New token detected: {mint}")
 
         token_info = fetch_token_info(mint)
         if not token_info:
@@ -104,8 +108,7 @@ def on_message(ws, message):
         if msg:
             send_telegram_message(msg)
         else:
-            print("[SKIP] Invalid message format.")
-
+            print("[SKIP] Message not sent, token info incomplete.")
     except Exception:
         print("[EXCEPTION] While handling WebSocket message:")
         traceback.print_exc()
@@ -133,7 +136,6 @@ def start_websocket():
     ws.run_forever()
 
 if __name__ == "__main__":
-    keep_alive()  # راه‌اندازی سرور برای زنده نگه داشتن بات
     print("[STARTING] PumpGuardians WebSocket bot running...")
     send_telegram_message("✅ PumpGuardians WebSocket bot started.")
     start_websocket()
