@@ -6,7 +6,7 @@ import datetime
 import traceback
 import logging
 import os
-from keep_alive import keep_alive  # فرض می‌کنم این برای آنلاین نگه داشتن باته
+from keep_alive import keep_alive
 
 # تنظیمات لاگینگ
 logging.basicConfig(
@@ -17,8 +17,8 @@ logging.basicConfig(
 
 # اطلاعات بات تلگرام
 TELEGRAM_BOT_TOKEN = "8041985955:AAGNPL_dWWWI5AWlYFue5NxkNOXsYqBOmiw"
-TELEGRAM_CHANNEL_ID = "@PumpGuardians"  # آیدی کانالت رو اینجا بذار
-SEEN_MINTS = set()  # برای جلوگیری از ارسال تکراری توکن‌ها
+TELEGRAM_CHANNEL_ID = "@PumpGuardians"
+SEEN_MINTS = set()
 
 # تابع ارسال پیام به تلگرام
 def send_telegram_message(text):
@@ -38,58 +38,39 @@ def send_telegram_message(text):
     except Exception as e:
         logging.exception("خطای غیرمنتظره در ارسال پیام به تلگرام")
 
-# تابع فرمت کردن اطلاعات توکن
-def format_token_message(info):
+# تابع فرمت کردن اطلاعات معامله
+def format_trade_message(data):
     try:
-        address = info.get("address")
-        if not address or address in SEEN_MINTS:
+        mint = data.get("mint")
+        if not mint or mint in SEEN_MINTS:
             return None
-        SEEN_MINTS.add(address)
+        SEEN_MINTS.add(mint)
 
-        name = info.get("name", "؟")
-        symbol = info.get("symbol", "؟")
-        price_usd = float(info.get("usdMarketPrice", 0))
-        price_sol = float(info.get("solMarketPrice", 0))
-        volume = float(info.get("totalVolume", 0))
-        market_cap = float(info.get("marketCapUsd", 0))
-        holders = info.get("holders", "؟")
-        twitter = info.get("twitter", "موجود نیست")
-        website = info.get("website", "موجود نیست")
-        created_at = int(info.get("created_at", 0))
-        score = int(info.get("score", 3))
-
-        green_circles = "🟢" * score
-
-        # محاسبه سن توکن با زمان UTC
-        if created_at:
-            now_utc = datetime.datetime.now(datetime.timezone.utc).timestamp()
-            age_seconds = now_utc - created_at
-            age_minutes = int(age_seconds // 60)
-            age_str = f"{age_minutes} دقیقه پیش"
-        else:
-            age_str = "نامشخص"
+        tx_type = data.get("txType", "؟")  # نوع معامله (buy یا sell)
+        trader = data.get("traderPublicKey", "ناشناس")[:8] + "..."  # کوتاه کردن آدرس معامله‌گر
+        token_amount = float(data.get("tokenAmount", 0))
+        market_cap = float(data.get("marketCapSol", 0))
+        sol_in_curve = float(data.get("vSolInBondingCurve", 0))
+        tokens_in_curve = float(data.get("vTokensInBondingCurve", 0))
 
         message = (
-            f"<b>PUMP GUARDIANS AI</b>\n\n"
-            f"<b>{name} / {symbol}</b>\n"
-            f"{green_circles} (امتیاز: {score})\n\n"
-            f"💵 <b>قیمت:</b> ${price_usd:.4f} ({price_sol:.4f} SOL)\n"
-            f"💰 <b>ارزش بازار:</b> ${market_cap:,.0f}\n"
-            f"📈 <b>حجم معاملات:</b> {volume:,.0f} SOL\n"
-            f"👥 <b>تعداد هولدرها:</b> {holders}\n"
-            f"⏱️ <b>سن توکن:</b> {age_str}\n"
-            f"🌐 <b>وب‌سایت:</b> {website}\n"
-            f"🐦 <b>توییتر:</b> {twitter}\n\n"
-            f"<a href='https://pump.fun/{address}'>خرید</a> | "
-            f"<a href='https://www.dexscreener.com/solana/{address}'>چارت</a> | "
-            f"<a href='https://birdeye.so/token/{address}'>اطلاعات بیشتر</a>"
+            f"<b>PUMP GUARDIANS AI - معامله جدید</b>\n\n"
+            f"📈 <b>توکن:</b> {mint[:8]}...\n"
+            f"💱 <b>نوع معامله:</b> {tx_type}\n"
+            f"👤 <b>معامله‌گر:</b> {trader}\n"
+            f"💵 <b>مقدار توکن:</b> {token_amount:,.0f}\n"
+            f"💰 <b>ارزش بازار (SOL):</b> {market_cap:,.2f}\n"
+            f"🏦 <b>SOL در Bonding Curve:</b> {sol_in_curve:,.2f}\n"
+            f"📊 <b>توکن‌ها در Bonding Curve:</b> {tokens_in_curve:,.0f}\n\n"
+            f"<a href='https://pump.fun/{mint}'>خرید</a> | "
+            f"<a href='https://www.dexscreener.com/solana/{mint}'>چارت</a>"
         )
         return message
     except Exception:
-        logging.exception("خطا در فرمت کردن پیام توکن")
+        logging.exception("خطا در فرمت کردن پیام معامله")
         return None
 
-# تابع دریافت اطلاعات توکن از API
+# تابع دریافت اطلاعات توکن از API (برای اطلاعات اضافی، اگه نیاز شد)
 def fetch_token_info(address):
     try:
         url = f"https://pumpportal.fun/api/mint/{address}"
@@ -102,25 +83,21 @@ def fetch_token_info(address):
         logging.exception(f"خطا در دریافت اطلاعات توکن {address}")
         return None
 
-# توابع مدیریت WebSocket
+# تابع مدیریت پیام‌های WebSocket
 def on_message(ws, message):
     try:
+        logging.info(f"پیام خام WebSocket دریافت شد: {message}")
         data = json.loads(message)
-        mint = data.get("mint")
-        if not mint or mint in SEEN_MINTS:
-            return
-        logging.info(f"توکن جدید دریافت شد: {mint}")
-
-        token_info = fetch_token_info(mint)
-        if not token_info:
-            return
-
-        msg = format_token_message(token_info)
-        if msg:
-            send_telegram_message(msg)
-            time.sleep(1)  # تأخیر برای جلوگیری از بلاک شدن تلگرام
+        
+        # فقط معاملات رو پردازش کن
+        if "txType" in data and data.get("txType") in ["buy", "sell"]:
+            logging.info(f"معامله جدید دریافت شد: {data.get('mint')}")
+            msg = format_trade_message(data)
+            if msg:
+                send_telegram_message(msg)
+                logging.info(f"پیام برای معامله {data.get('mint')} به تلگرام ارسال شد")
         else:
-            logging.info(f"پیام برای توکن {mint} قابل فرمت شدن نبود")
+            logging.info("پیام دریافت‌شده معامله نیست، نادیده گرفته شد")
     except Exception:
         logging.exception("خطا در پردازش پیام WebSocket")
 
@@ -137,11 +114,19 @@ def on_close(ws, close_status_code, close_msg):
             start_websocket()
             break
         except Exception:
-            backoff = min(backoff * 2, 60)  # حداکثر تأخیر 60 ثانیه
+            backoff = min(backoff * 2, 60)
 
 def on_open(ws):
     logging.info("اتصال به WebSocket برقرار شد")
-    send_telegram_message("✅ بات WebSocket شروع به کار کرد")  # پیام تست اولیه
+    send_telegram_message("✅ بات WebSocket شروع به کار کرد - در انتظار معاملات...")
+    
+    # اشتراک به معاملات توکن‌ها
+    payload = {
+        "method": "subscribeTokenTrade",
+        "keys": []  # اگه بخوای توکن خاصی رو مانیتور کنی، آدرسش رو اینجا بذار، وگرنه همه توکن‌ها رو می‌گیره
+    }
+    ws.send(json.dumps(payload))
+    logging.info("اشتراک به معاملات توکن‌ها انجام شد")
 
 # تابع شروع WebSocket
 def start_websocket():
@@ -156,6 +141,10 @@ def start_websocket():
 
 if __name__ == "__main__":
     logging.info("شروع بات WebSocket PumpGuardians...")
-    send_telegram_message("🚀 بات در حال راه‌اندازی است...")  # پیام تست قبل از شروع
+    send_telegram_message("🚀 بات در حال راه‌اندازی است...")
     keep_alive()
-    start_websocket()
+    try:
+        start_websocket()
+    except Exception as e:
+        logging.exception("خطا در شروع WebSocket")
+        send_telegram_message(f"❌ خطا در اتصال WebSocket: {str(e)}")
