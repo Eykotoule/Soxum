@@ -1,22 +1,24 @@
 import requests
 import websocket
-import threading
 import json
 import time
 import datetime
 import traceback
-import os
 import logging
-from keep_alive import keep_alive  # فرض می‌کنم برای آنلاین نگه داشتن باته
+import os
+from keep_alive import keep_alive  # فرض می‌کنم این برای آنلاین نگه داشتن باته
 
-# تنظیم لاگینگ برای خطاها
-logging.basicConfig(filename='bot.log', level=logging.INFO,
-                    format='%(asctime)s - %(levelname)s - %(message)s')
+# تنظیمات لاگینگ
+logging.basicConfig(
+    filename='bot.log',
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s'
+)
 
-# توکن بات تلگرام (بهتره از متغیر محیطی استفاده کنی)
-TELEGRAM_BOT_TOKEN = os.getenv("8041985955:AAGNPL_dWWWI5AWlYFue5NxkNOXsYqBOmiw")
-TELEGRAM_CHANNEL_ID = "@PumpGuardians"
-SEEN_MINTS = set()  # جلوگیری از ارسال تکراری
+# اطلاعات بات تلگرام
+TELEGRAM_BOT_TOKEN = "8041985955:AAGNPL_dWWWI5AWlYFue5NxkNOXsYqBOmiw"
+TELEGRAM_CHANNEL_ID = "@PumpGuardians"  # آیدی کانالت رو اینجا بذار
+SEEN_MINTS = set()  # برای جلوگیری از ارسال تکراری توکن‌ها
 
 # تابع ارسال پیام به تلگرام
 def send_telegram_message(text):
@@ -28,13 +30,15 @@ def send_telegram_message(text):
         "disable_web_page_preview": False
     }
     try:
-        response = requests.post(url, data=payload)
+        response = requests.post(url, data=payload, timeout=10)
         if response.status_code != 200:
             logging.error(f"خطا در ارسال به تلگرام: {response.text}")
+        else:
+            logging.info("پیام با موفقیت به تلگرام ارسال شد")
     except Exception as e:
-        logging.exception("خطا در ارسال پیام به تلگرام")
+        logging.exception("خطای غیرمنتظره در ارسال پیام به تلگرام")
 
-# تابع فرمت کردن اطلاعات توکن (بدون فیلتر)
+# تابع فرمت کردن اطلاعات توکن
 def format_token_message(info):
     try:
         address = info.get("address")
@@ -56,7 +60,7 @@ def format_token_message(info):
 
         green_circles = "🟢" * score
 
-        # محاسبه سن توکن
+        # محاسبه سن توکن با زمان UTC
         if created_at:
             now_utc = datetime.datetime.now(datetime.timezone.utc).timestamp()
             age_seconds = now_utc - created_at
@@ -89,23 +93,23 @@ def format_token_message(info):
 def fetch_token_info(address):
     try:
         url = f"https://pumpportal.fun/api/mint/{address}"
-        res = requests.get(url, timeout=5)
+        res = requests.get(url, timeout=10)
         if res.status_code != 200:
-            logging.error(f"خطا در دریافت اطلاعات توکن {address}: {res.text}")
+            logging.error(f"خطا در دریافت اطلاعات توکن {address}: {res.status_code} - {res.text}")
             return None
         return res.json()
     except Exception:
         logging.exception(f"خطا در دریافت اطلاعات توکن {address}")
         return None
 
-# تابع مدیریت پیام‌های WebSocket
+# توابع مدیریت WebSocket
 def on_message(ws, message):
     try:
         data = json.loads(message)
         mint = data.get("mint")
         if not mint or mint in SEEN_MINTS:
             return
-        logging.info(f"توکن جدید: {mint}")
+        logging.info(f"توکن جدید دریافت شد: {mint}")
 
         token_info = fetch_token_info(mint)
         if not token_info:
@@ -114,11 +118,12 @@ def on_message(ws, message):
         msg = format_token_message(token_info)
         if msg:
             send_telegram_message(msg)
-            time.sleep(1)  # تأخیر برای جلوگیری از بلاک شدن
+            time.sleep(1)  # تأخیر برای جلوگیری از بلاک شدن تلگرام
+        else:
+            logging.info(f"پیام برای توکن {mint} قابل فرمت شدن نبود")
     except Exception:
         logging.exception("خطا در پردازش پیام WebSocket")
 
-# توابع مدیریت WebSocket
 def on_error(ws, error):
     logging.error(f"خطای WebSocket: {error}")
 
@@ -132,11 +137,11 @@ def on_close(ws, close_status_code, close_msg):
             start_websocket()
             break
         except Exception:
-            backoff = min(backoff * 2, 60)
+            backoff = min(backoff * 2, 60)  # حداکثر تأخیر 60 ثانیه
 
 def on_open(ws):
-    logging.info("اتصال WebSocket برقرار شد")
-    send_telegram_message("✅ بات WebSocket شروع به کار کرد")
+    logging.info("اتصال به WebSocket برقرار شد")
+    send_telegram_message("✅ بات WebSocket شروع به کار کرد")  # پیام تست اولیه
 
 # تابع شروع WebSocket
 def start_websocket():
@@ -151,5 +156,6 @@ def start_websocket():
 
 if __name__ == "__main__":
     logging.info("شروع بات WebSocket PumpGuardians...")
+    send_telegram_message("🚀 بات در حال راه‌اندازی است...")  # پیام تست قبل از شروع
     keep_alive()
     start_websocket()
