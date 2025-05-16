@@ -14,7 +14,7 @@ logging.basicConfig(filename='bot.log', level=logging.INFO,
                     format='%(asctime)s - %(levelname)s - %(message)s')
 
 # توکن بات تلگرام (بهتره از متغیر محیطی استفاده کنی)
-TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "توکن_بات_تو")
+TELEGRAM_BOT_TOKEN = os.getenv("8041985955:AAGNPL_dWWWI5AWlYFue5NxkNOXsYqBOmiw")
 TELEGRAM_CHANNEL_ID = "@PumpGuardians"
 SEEN_MINTS = set()  # جلوگیری از ارسال تکراری
 
