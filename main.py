@@ -7,16 +7,16 @@ import datetime
 import traceback
 import os
 import logging
-from keep_alive import keep_alive  # فرض می‌کنم این ماژول برای نگه‌داشتن بات فعاله
+from keep_alive import keep_alive  # فرض می‌کنم برای آنلاین نگه داشتن باته
 
-# تنظیمات لاگینگ برای ذخیره خطاها
+# تنظیم لاگینگ برای خطاها
 logging.basicConfig(filename='bot.log', level=logging.INFO,
                     format='%(asctime)s - %(levelname)s - %(message)s')
 
 # توکن بات تلگرام (بهتره از متغیر محیطی استفاده کنی)
-TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "8041985955:AAGNPL_dWWWI5AWlYFue5NxkNOXsYqBOmiw")
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "توکن_بات_تو")
 TELEGRAM_CHANNEL_ID = "@PumpGuardians"
-SEEN_MINTS = set()  # برای جلوگیری از ارسال تکراری توکن‌ها
+SEEN_MINTS = set()  # جلوگیری از ارسال تکراری
 
 # تابع ارسال پیام به تلگرام
 def send_telegram_message(text):
@@ -34,7 +34,7 @@ def send_telegram_message(text):
     except Exception as e:
         logging.exception("خطا در ارسال پیام به تلگرام")
 
-# تابع فرمت کردن اطلاعات توکن
+# تابع فرمت کردن اطلاعات توکن (بدون فیلتر)
 def format_token_message(info):
     try:
         address = info.get("address")
@@ -54,14 +54,9 @@ def format_token_message(info):
         created_at = int(info.get("created_at", 0))
         score = int(info.get("score", 3))
 
-        # فیلتر کردن توکن‌ها با حجم معاملات کمتر از 100 SOL
-        if volume < 100:
-            logging.info(f"توکن {address} به دلیل حجم کم ({volume} SOL) فیلتر شد")
-            return None
-
         green_circles = "🟢" * score
 
-        # محاسبه سن توکن با زمان UTC
+        # محاسبه سن توکن
         if created_at:
             now_utc = datetime.datetime.now(datetime.timezone.utc).timestamp()
             age_seconds = now_utc - created_at
@@ -119,19 +114,16 @@ def on_message(ws, message):
         msg = format_token_message(token_info)
         if msg:
             send_telegram_message(msg)
-            time.sleep(1)  # تأخیر برای جلوگیری از بلاک شدن توسط تلگرام
-        else:
-            logging.info("پیام نامعتبر یا فیلتر شده")
+            time.sleep(1)  # تأخیر برای جلوگیری از بلاک شدن
     except Exception:
         logging.exception("خطا در پردازش پیام WebSocket")
 
-# تابع مدیریت خطاهای WebSocket
+# توابع مدیریت WebSocket
 def on_error(ws, error):
     logging.error(f"خطای WebSocket: {error}")
 
-# تابع مدیریت بسته شدن WebSocket
 def on_close(ws, close_status_code, close_msg):
-    logging.info(f"اتصال WebSocket بسته شد: کد {close_status_code}, پیام: {close_msg}")
+    logging.info(f"اتصال WebSocket بسته شد: {close_status_code}, {close_msg}")
     backoff = 5
     while True:
         logging.info(f"تلاش برای اتصال دوباره بعد از {backoff} ثانیه...")
@@ -140,9 +132,8 @@ def on_close(ws, close_status_code, close_msg):
             start_websocket()
             break
         except Exception:
-            backoff = min(backoff * 2, 60)  # حداکثر تأخیر 60 ثانیه
+            backoff = min(backoff * 2, 60)
 
-# تابع مدیریت باز شدن WebSocket
 def on_open(ws):
     logging.info("اتصال WebSocket برقرار شد")
     send_telegram_message("✅ بات WebSocket شروع به کار کرد")
@@ -160,5 +151,5 @@ def start_websocket():
 
 if __name__ == "__main__":
     logging.info("شروع بات WebSocket PumpGuardians...")
-    keep_alive()  # فرض می‌کنم این تابع برای آنلاین نگه داشتن باته
+    keep_alive()
     start_websocket()
